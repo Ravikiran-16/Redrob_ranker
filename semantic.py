@@ -1,37 +1,10 @@
-"""
-semantic.py
-============
-Lightweight semantic relevance layer.
+# Calculate similarity between candidates and the job description
 
-Why TF-IDF and not a transformer embedding model?
-- Compute constraints are hard: CPU-only, <=5 min wall-clock, no network
-  during ranking, <=16GB RAM, for 100,000 candidates.
-- A from-scratch TF-IDF + cosine-similarity over the full corpus is exact,
-  deterministic, dependency-light (sklearn only), and comfortably fits the
-  budget (fit+transform on 100k short documents is seconds, not minutes).
-- Pretrained sentence embeddings (e.g. sentence-transformers) would add
-  real semantic quality, but require ~80-400MB of model weights to be
-  bundled as a precomputed artifact and a non-trivial CPU pass per
-  candidate. We support this as an OPTIONAL upgrade path (see
-  precompute_embeddings.py) but the ranker must work correctly with TF-IDF
-  alone, which is what ships by default.
-
-Why TF-IDF still beats naive keyword counting:
-- It downweights generic words shared by every profile (years, experience,
-  engineer...) and upweights words that are discriminative for this JD's
-  vocabulary (retrieval, embeddings, ranking, evaluation...).
-- We deliberately build the vector from CAREER NARRATIVE TEXT, not the raw
-  skills list, so that a candidate who has stuffed 10 AI skill *names* into
-  their skills array without ever describing AI work in a role gets a LOW
-  semantic score here -- exactly the keyword-stuffing trap the JD warns about.
-"""
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
-# The JD's own "core intent" text -- the paragraphs that actually describe
-# the work and the ideal candidate, intentionally excluding boilerplate
-# (comp/logistics, hackathon meta-notes) so the vector space isn't diluted.
+# Job description used for comparison
 JD_CORE_TEXT = """
 Own the intelligence layer of Redrob's product: the ranking, retrieval, and
 matching systems that decide what recruiters see when they search for
@@ -56,13 +29,10 @@ before LLMs were fashionable, and is now extending that with modern LLM and
 embedding techniques.
 """
 
-
+# Calculate semantic score for each candidate
 def build_semantic_scores(career_texts, jd_text=JD_CORE_TEXT, max_features=40000):
-    """
-    career_texts: list[str] -- one career-narrative document per candidate,
-                  in the SAME order the candidates will be written out.
-    Returns: np.ndarray of cosine similarities in [0, 1], same length/order.
-    """
+
+    # Create TF-IDF model
     vectorizer = TfidfVectorizer(
         max_features=max_features,
         ngram_range=(1, 2),
@@ -70,12 +40,25 @@ def build_semantic_scores(career_texts, jd_text=JD_CORE_TEXT, max_features=40000
         min_df=2,
         stop_words="english",
     )
+
+    # Combine candidate profiles with job description
     corpus = career_texts + [jd_text]
+
+    # Convert text into TF-IDF vectors
     tfidf = vectorizer.fit_transform(corpus)
+
+    # Job description vector
     jd_vec = tfidf[-1]
+
+    # Candidate vectors
     cand_matrix = tfidf[:-1]
+
+    # Calculate similarity score
     sims = cosine_similarity(cand_matrix, jd_vec).ravel()
-    # Min-max normalize to spread the distribution across [0,1] for easier blending
+
+    # Normalize scores between 0 and 1
     if sims.max() > sims.min():
         sims = (sims - sims.min()) / (sims.max() - sims.min())
+
+    # Return semantic scores
     return sims
