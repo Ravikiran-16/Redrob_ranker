@@ -11,11 +11,18 @@ collapsing into keyword matching.
 
 ```bash
 pip install -r requirements.txt
+
+## Running the ranker
+
+[1. Place candidates.jsonl in this folder (or use your own path)
+2. Run:
+   python rank.py --candidates candidates.jsonl --out submission.csv]
 python rank.py --candidates ./candidates.jsonl --out ./submission.csv
+
 python validate_submission.py ./submission.csv   # provided by organizers
 ```
 
-Also accepts gzipped input directly: `--candidates ./candidates.jsonl.gz`.
+
 
 Measured on a 1-vCPU / 4GB container (worse than the 16GB/CPU sandbox the
 organizers will use): **~60-90 seconds wall-clock, ~2GB peak RAM** for the
